@@ -1,0 +1,15 @@
+{
+    "min_segment_duration": 50,
+    "max_segment_duration": 170,
+    "min_pause_duration": 4.0,
+    "zoom_factor": 1.15,
+    "background_music": {
+        "enabled": true,
+        "file": "nhacnen.mp3",
+        "volume": 0.10
+    },
+    "groq_ai": {
+        "enabled": false,
+        "api_key": ""
+    }
+}

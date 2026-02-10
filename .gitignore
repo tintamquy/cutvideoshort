@@ -1,0 +1,67 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+input/
+output/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.srt
+*.mp3
+*.wav
+
+# FFmpeg binaries (quá lớn, người dùng tự download)
+ffmpeg.exe
+ffplay.exe
+ffprobe.exe
+ffmpeg
+ffplay
+ffprobe
+
+# Logo/watermark (người dùng tự tạo)
+9-16logo.png
+nhacnen.mp3
+
+# Logs
+*.log
+
+# API keys (bảo mật)
+.env
