@@ -57,8 +57,6 @@ ffplay
 ffprobe
 
 # Logo/watermark (người dùng tự tạo)
-9-16logo.png
-nhacnen.mp3
 
 # Logs
 *.log
