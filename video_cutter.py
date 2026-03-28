@@ -10,10 +10,16 @@ import re
 import json
 import subprocess
 import sys
+import io
+import shutil
 from datetime import timedelta
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import time
+
+# Ép hệ thống dùng UTF-8 trên Windows để in được emoji (Ngăn lỗi UnicodeEncodeError khi print)
+if sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 class SubtitleSegment:
@@ -84,55 +90,83 @@ class SubtitleParser:
         return hours * 3600 + minutes * 60 + seconds
 
 
-class GroqAI:
-    """Tích hợp Groq API để phân tích semantic (miễn phí, optional)"""
+class OpenClawAI:
+    """Tích hợp OpenClaw API để phân tích semantic và độ viral"""
     
-    def __init__(self, api_key: Optional[str] = None, enabled: bool = False):
+    def __init__(self, api_key: str, model: str = "claude-haiku-4.5", enabled: bool = True):
         self.api_key = api_key
-        self.enabled = enabled and api_key is not None
-        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+        self.model = model
+        self.enabled = enabled and bool(api_key)
+        self.base_url = "https://llm.chiasegpu.vn/v1/chat/completions"
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
     
-    def analyze_segments(self, subtitle_text: str, segments_info: str) -> Optional[str]:
-        """Gửi yêu cầu tới Groq để phân tích điểm cắt tốt nhất"""
+    def analyze_subtitles(self, subtitle_text: str, max_duration: int = 179) -> Optional[List[Dict]]:
+        """Gửi SRT lên AI để chọn ra các đoạn video viral"""
         if not self.enabled:
             return None
-        
+            
         try:
             import requests
             
-            prompt = f"""Bạn là chuyên gia phân tích nội dung tiếng Việt. Cho subtitle sau:
+            prompt = f"""Bạn là một chuyên gia sáng tạo nội dung viral, giống như Vizard.ai. 
+Hãy phân tích file phụ đề (subtitle) sau đây và chọn ra những phân đoạn có nội dung hấp dẫn, trọn vẹn ý nghĩa, có khả năng viral cao.
 
+QUY TẮC BẮT BUỘC:
+1. TÌM CÀNG NHIỀU ĐOẠN VIRAL CÀNG TỐT. Với video dài (như 30 phút - 1 tiếng), BẮT BUỘC phải tìm TẤT CẢ các đoạn tiềm năng. Đừng ngại trả về 10, 20, hay 30 đoạn nếu nội dung thật sự hấp dẫn. Tuyệt đối KHÔNG LƯỜI BIẾNG bỏ sót nội dung ở phần giữa hay phần cuối video. Giữ mọi thứ trong 1 file JSON duy nhất.
+2. Độ dài mỗi đoạn BẮT BUỘC TỪ 120 GIÂY ĐẾN {max_duration} GIÂY (Từ 2 phút đến dưới 3 phút). Tuyệt đối không quá {max_duration} giây. Tự cộng/trừ thời gian cho mạch truyện trọn vẹn.
+3. Tiêu đề (title): MỖI ĐOẠN CẦN CÓ Title tiếng Việt dạng Hook Title giật gân. RẤT QUAN TRỌNG: TIÊU ĐỀ PHẢI NGẮN GỌN (CHỈ TỪ 5 ĐẾN 8 TỪ).
+4. Độ viral (viral_score): Chấm điểm 1 đến 10.
+5. QUAN TRỌNG: Cột mốc thời gian trong ngoặc vuông [] được tính bằng TỔNG SỐ GIÂY (Ví dụ: [130.50s]). Khi trả JSON, BÊ NGUYÊN CON SỐ GIÂY NÀY VÀO `start_time` VÀ `end_time`. Tuyệt đối KHÔNG tự quy đổi lại thành phút, giây để tránh sai số hiển thị.
+6. CHỈ TRẢ VỀ MỘT MẢNG JSON, KHÔNG BÌNH LUẬN GÌ THÊM.
+
+Subtitles:
 {subtitle_text}
 
-Các đoạn đã cắt hiện tại:
-{segments_info}
-
-Hãy đánh giá xem các điểm cắt có hợp lý không (câu đầu/cuối có trọn vẹn, ý nghĩa có hoàn chỉnh không).
-Trả lời ngắn gọn: OK hoặc đề xuất cải thiện."""
-
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
+Mẫu JSON TRẢ VỀ:
+[
+  {{
+    "start_time": 120.50,
+    "end_time": 215.00,
+    "title": "Bí mật kiếm tiền triệu mỗi ngày mà không ai ngờ tới",
+    "viral_score": 9,
+    "reason": "Giải thích ngắn gọn 1 câu tiếng việt"
+  }}
+]"""
             
             data = {
-                "model": "llama-3.3-70b-versatile",  # Model nhanh và tốt
+                "model": self.model,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 200,
-                "temperature": 0.3
+                "temperature": 0.4
             }
             
-            response = requests.post(self.base_url, json=data, headers=headers, timeout=10)
+            print(f"  🤖 (AI Model: {self.model}) đang đọc kịch bản và phân tích độ viral (có thể mất 1-2 phút)...")
+            response = requests.post(self.base_url, json=data, headers=self.headers, timeout=180)
             
             if response.status_code == 200:
                 result = response.json()
-                return result['choices'][0]['message']['content']
+                content = result['choices'][0]['message']['content'].strip()
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.startswith("```"):
+                    content = content[3:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                
+                import json
+                try:
+                    return json.loads(content.strip())
+                except json.JSONDecodeError:
+                    print(f"⚠️ Lỗi Parse JSON. Trả về thực tế: {content}")
+                    return None
             else:
-                print(f"⚠️ Groq API lỗi: {response.status_code}")
+                print(f"⚠️ OpenClaw API lỗi: {response.status_code} - {response.text}")
                 return None
                 
         except Exception as e:
-            print(f"⚠️ Groq API không khả dụng: {e}")
+            print(f"⚠️ OpenClaw API không khả dụng: {e}")
             return None
 
 
@@ -150,14 +184,64 @@ class SegmentDetector:
     """Phát hiện các đoạn video có ý nghĩa từ subtitle"""
     
     def __init__(self, min_duration: int = 55, max_duration: int = 150, min_pause: float = 4.0, 
-                 max_pause_to_skip: float = 8.0, groq_api: Optional[GroqAI] = None):
+                 max_pause_to_skip: float = 8.0, ai_api: Optional[OpenClawAI] = None, min_viral_score: int = 7):
         self.min_duration = min_duration
         self.max_duration = max_duration
         self.min_pause = min_pause
         self.max_pause_to_skip = max_pause_to_skip
-        self.groq_api = groq_api
+        self.ai_api = ai_api
+        self.min_viral_score = min_viral_score
     
     def detect_segments(self, subtitle_segments: List[SubtitleSegment]) -> List[VideoSegment]:
+        if self.ai_api and self.ai_api.enabled:
+            video_segments = self._detect_with_ai(subtitle_segments)
+            if video_segments:
+                return video_segments
+            print("  ⚠️ AI không cắt được. Chuyển sang cắt tự động thông thường (bỏ qua chấm điểm viral).")
+        return self._detect_normal(subtitle_segments)
+        
+    def _detect_with_ai(self, subtitle_segments: List[SubtitleSegment]) -> List[VideoSegment]:
+        srt_text = ""
+        for seg in subtitle_segments:
+            srt_text += f"[{seg.start_time:.2f}s - {seg.end_time:.2f}s] {seg.text}\n"
+        
+        # Trừ đi 10s dự phòng cho việc giãn chữ cuối câu
+        ai_results = self.ai_api.analyze_subtitles(srt_text, self.max_duration - 10)
+        video_segments = []
+        
+        if ai_results:
+            print(f"  ✨ Nhận kết quả từ AI, đang lọc độ Viral...")
+            for item in ai_results:
+                score = item.get('viral_score', 0)
+                if score >= self.min_viral_score:
+                    title = item.get('title', 'viral_segment').strip()
+                    safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
+                    safe_title = safe_title.strip()
+                    
+                    print(f"     🔥 SIÊU PHẨM (Điểm: {score}/10): {title}")
+                    print(f"        ✏️ Lý do: {item.get('reason', '')}")
+                    
+                    start = float(item.get('start_time', 0))
+                    end = float(item.get('end_time', 0))
+                    
+                    actual_text = [s.text for s in subtitle_segments if s.start_time >= start and s.end_time <= end]
+                    
+                    video_segments.append(VideoSegment(
+                        start_time=start,
+                        end_time=end,
+                        title=safe_title,
+                        subtitle_text=' '.join(actual_text)
+                    ))
+                else:
+                    title = item.get('title', 'Đoạn không đạt yêu cầu')
+                    print(f"     ❌ Bỏ qua đoạn này vì điểm kém ({score}/10): {title}")
+
+            if video_segments:
+                return self._ensure_complete_sentences(video_segments, subtitle_segments)
+        
+        return []
+
+    def _detect_normal(self, subtitle_segments: List[SubtitleSegment]) -> List[VideoSegment]:
         """Phát hiện các đoạn có ý nghĩa từ subtitle, ĐẢM BẢO 100% video trong 55-150s"""
         video_segments = []
         
@@ -293,32 +377,52 @@ class SegmentDetector:
             
             # Kiểm tra câu đầu tiên: Nếu không bắt đầu bằng chữ hoa, mở rộng ra trước
             first_text = seg_subs[0].text.strip()
-            if first_text and not first_text[0].isupper() and not first_text[0].isdigit():
-                # Tìm subtitle trước đó
-                idx = subtitle_segments.index(seg_subs[0])
-                if idx > 0:
-                    # Mở rộng bắt đầu từ subtitle trước
-                    prev_sub = subtitle_segments[idx - 1]
-                    segment.start_time = prev_sub.start_time
-                    seg_subs.insert(0, prev_sub)
+            idx = subtitle_segments.index(seg_subs[0])
+            while first_text and not first_text[0].isupper() and not first_text[0].isdigit() and idx > 0:
+                prev_sub = subtitle_segments[idx - 1]
+                if segment.end_time - prev_sub.start_time > self.max_duration:
+                    break
+                segment.start_time = prev_sub.start_time
+                seg_subs.insert(0, prev_sub)
+                idx -= 1
+                first_text = seg_subs[0].text.strip()
             
             # Kiểm tra câu cuối: Nếu không kết thúc bằng dấu chấm câu, mở rộng ra sau
             last_text = seg_subs[-1].text.strip()
-            if not self._is_sentence_end(last_text):
-                # Tìm subtitle tiếp theo
-                idx = subtitle_segments.index(seg_subs[-1])
-                if idx < len(subtitle_segments) - 1:
-                    # Mở rộng kết thúc đến subtitle tiếp theo NẾU không vượt quá max
-                    next_sub = subtitle_segments[idx + 1]
-                    potential_duration = next_sub.end_time - segment.start_time
-                    
-                    if potential_duration <= self.max_duration + 5:  # Cho phép +5s buffer
-                        segment.end_time = next_sub.end_time
-                        seg_subs.append(next_sub)
+            idx = subtitle_segments.index(seg_subs[-1])
+            while not self._is_sentence_end(last_text) and idx < len(subtitle_segments) - 1:
+                next_sub = subtitle_segments[idx + 1]
+                if next_sub.end_time - segment.start_time > self.max_duration:
+                    break
+                segment.end_time = next_sub.end_time
+                seg_subs.append(next_sub)
+                idx += 1
+                last_text = seg_subs[-1].text.strip()
             
+            # --- CHẶN CỨNG THỜI LƯỢNG KỊCH TRẦN ---
+            # Nếu AI vẫn lỳ lợm nhả khoảng thời gian > max_duration (VD 190s),
+            # bắt buộc phải cắt bỏ các dòng phụ đề cuối cùng cho đến khi < max_duration
+            while segment.end_time - segment.start_time > self.max_duration:
+                if len(seg_subs) > 1:
+                    seg_subs.pop()
+                    segment.end_time = seg_subs[-1].end_time
+                else:
+                    segment.end_time = segment.start_time + self.max_duration
+                    break
+            
+            # Tinh chỉnh mềm: Sau khi lùi xuống dưới mức max_duration, 
+            # dò lùi tiếp để tìm một "dấu chấm câu" nhằm giữ mạch truyện trọn vẹn nhất có thể.
+            while len(seg_subs) > 1 and not self._is_sentence_end(seg_subs[-1].text.strip()):
+                last_end = seg_subs[-2].end_time
+                if last_end - segment.start_time <= self.min_duration:
+                    break   # Dừng dò lùi lại vì video chạm ngưỡng quá ngắn
+                seg_subs.pop()
+                segment.end_time = seg_subs[-1].end_time
+                
             # Cập nhật subtitle text
             segment.subtitle_text = ' '.join(s.text for s in seg_subs)
-            segment.title = self._generate_title(segment.subtitle_text)
+            if not getattr(self, 'ai_api', None) or getattr(self.ai_api, 'enabled', False) == False:
+                segment.title = self._generate_title(segment.subtitle_text)
             segment.duration = segment.end_time - segment.start_time
             
             corrected_segments.append(segment)
@@ -515,7 +619,14 @@ class MainController:
         self.base_dir = Path(__file__).parent
         self.input_dir = self.base_dir / 'input'
         self.output_dir = self.base_dir / 'output'
-        self.ffmpeg_path = self.base_dir / 'ffmpeg.exe'
+        
+        # Hỗ trợ ffmpeg đa nền tảng (Mac / Win)
+        if sys.platform == 'win32':
+            self.ffmpeg_path = self.base_dir / 'ffmpeg.exe'
+        else:
+            local_ff = self.base_dir / 'ffmpeg'
+            self.ffmpeg_path = local_ff if local_ff.exists() else Path('ffmpeg')
+            
         self.logo_path = self.base_dir / '9-16logo.png'
         
         # Load config
@@ -531,12 +642,14 @@ class MainController:
             self.background_music = None
             self.music_volume = 0.15
         
-        # Groq AI
-        groq_cfg = self.config.get('groq_ai', {})
-        if groq_cfg.get('enabled', False) and groq_cfg.get('api_key'):
-            self.groq_api = GroqAI(api_key=groq_cfg['api_key'], enabled=True)
+        # OpenClaw AI
+        ai_cfg = self.config.get('openclaw_ai', {})
+        if ai_cfg.get('enabled', False) and ai_cfg.get('api_key'):
+            self.ai_api = OpenClawAI(api_key=ai_cfg['api_key'], model=ai_cfg.get('model', 'claude-haiku-4.5'), enabled=True)
+            self.min_viral_score = ai_cfg.get('min_viral_score', 7)
         else:
-            self.groq_api = None
+            self.ai_api = None
+            self.min_viral_score = 7
         
         # Tạo directories
         self.input_dir.mkdir(exist_ok=True)
@@ -566,41 +679,69 @@ class MainController:
             return default_config
     
     def find_video_subtitle_pairs(self) -> List[Tuple[Path, Path]]:
-        """Tìm tất cả cặp video + subtitle trong input folder"""
+        """Tìm trong mỗi folder con của input, lấy 1 video và 1 srt dù tên gì"""
         pairs = []
-        
         video_extensions = ['.mp4', '.avi', '.mov', '.mkv']
         
-        for video_file in self.input_dir.iterdir():
-            if video_file.suffix.lower() in video_extensions:
-                # Tìm file subtitle tương ứng
-                subtitle_file = video_file.with_suffix('.srt')
+        for folder in self.input_dir.iterdir():
+            if folder.is_dir():
+                videos = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in video_extensions]
+                srts = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() == '.srt']
                 
-                if not subtitle_file.exists():
-                    # Thử tìm file có (1), (2) etc.
-                    base_name = video_file.stem
-                    potential_srt = list(self.input_dir.glob(f"{base_name}*.srt"))
-                    
-                    if potential_srt:
-                        subtitle_file = potential_srt[0]
-                    else:
-                        print(f"⚠️ Không tìm thấy subtitle cho: {video_file.name}")
-                        continue
-                
-                pairs.append((video_file, subtitle_file))
-        
+                if videos and srts:
+                    pairs.append((videos[0], srts[0]))
+                else:
+                    if not videos:
+                        print(f"⚠️ Thư mục con '{folder.name}' bị thiếu video.")
+                    if not srts:
+                        print(f"⚠️ Thư mục con '{folder.name}' thiếu file subtitle (.srt).")
+                        
         return pairs
     
     def process_all(self):
         """Xử lý tất cả video trong input folder"""
         print("=" * 70)
-        print("🎥 PHẦN MỀM CẮT VIDEO SHORT - PhatDaPhoTe.com")
+        print("🎥 PHẦN MỀM CẮT VIDEO SHORT - (Chế Độ Vizard AI)")
         print("=" * 70)
         print()
+        if self.ai_api and self.ai_api.enabled:
+            print(f"🤖 Chế độ AI Tự động quyết định cắt: ĐÃ BẬT")
+            print(f"   - API: OpenClaw (Chi tiết model: {self.ai_api.model})")
+            print(f"   - Viral Score tổi thiểu: {self.min_viral_score}/10")
+        else:
+            print("⚡ Chế độ cắt nhanh thông thường: ĐÃ BẬT (AI Đang Tắt)")
+        print()
         
-        # Kiểm tra FFmpeg
-        if not self.ffmpeg_path.exists():
-            print("❌ Không tìm thấy ffmpeg.exe!")
+        # Hỏi người dùng về nhạc nền
+        music_cfg = self.config.get('background_music', {})
+        default_enabled = music_cfg.get('enabled', False)
+        default_str = "CÓ" if default_enabled else "KHÔNG"
+        
+        print(f"🎵 Cấu hình nhạc nền hiện tại: {default_str}")
+        user_input = input(f"👉 Bạn có muốn chèn nhạc nền không? (y=Có, n=Không, Enter=Giữ nguyên): ").strip().lower()
+
+        if user_input == 'n':
+            self.background_music = None
+            print("🔕 Đã TẮT nhạc nền cho lần chạy này.")
+        elif user_input == 'y':
+            # Try to enable
+            music_file_name = music_cfg.get('file', 'nhacnen.mp3')
+            music_file = self.base_dir / music_file_name
+            if music_file.exists():
+                self.background_music = str(music_file)
+                self.music_volume = music_cfg.get('volume', 0.15)
+                print(f"🎵 Đã BẬT nhạc nền: {music_file_name}")
+            else:
+                print(f"❌ Không tìm thấy file nhạc '{music_file_name}'! Sẽ không chèn nhạc.")
+                self.background_music = None
+        else:
+            print(f"⏩ Giữ nguyên cấu hình: {default_str}")
+            
+        print()
+        
+        # Kiểm tra FFmpeg (qua file hoặc biến PATH macOS)
+        if not shutil.which(str(self.ffmpeg_path)):
+            print("❌ Không tìm thấy ffmpeg trong hệ thống hoặc thư mục!")
             input("Nhấn Enter để thoát...")
             return
         
@@ -649,7 +790,8 @@ class MainController:
             min_duration=self.config.get('min_segment_duration', 50),
             max_duration=self.config['max_segment_duration'],
             min_pause=self.config['min_pause_duration'],
-            groq_api=self.groq_api
+            ai_api=self.ai_api,
+            min_viral_score=self.min_viral_score
         )
         video_segments = detector.detect_segments(subtitle_segments)
         print(f"     ✅ Phát hiện được {len(video_segments)} đoạn short")
@@ -664,15 +806,22 @@ class MainController:
         
         success_count = 0
         for idx, segment in enumerate(video_segments, 1):
-            output_filename = f"{idx:02d}_{segment.title}.mp4"
+            base_name = segment.title if segment.title else f"Short_{idx:02d}"
+            output_filename = f"{base_name}.mp4"
             output_path = output_folder / output_filename
+            # Nếu trùng tên file, thêm index
+            counter = 1
+            while output_path.exists():
+                output_filename = f"{base_name} ({counter}).mp4"
+                output_path = output_folder / output_filename
+                counter += 1
             
             success = processor.process_video(
                 input_video=str(video_file),
                 output_video=str(output_path),
                 start_time=segment.start_time,
                 end_time=segment.end_time,
-                title_text=segment.title.replace('_', ' ').title(),
+                title_text=segment.title.title(),
                 logo_path=str(self.logo_path),
                 background_music=self.background_music,
                 music_volume=self.music_volume,

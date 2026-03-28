@@ -19,6 +19,7 @@ if errorlevel 1 (
 )
 
 REM Chạy script Python
+set PYTHONIOENCODING=utf-8
 python video_cutter.py
 
 REM Giữ cửa sổ mở nếu có lỗi

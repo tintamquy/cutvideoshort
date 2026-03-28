@@ -1,6 +1,6 @@
 {
-    "min_segment_duration": 50,
-    "max_segment_duration": 165,
+    "min_segment_duration": 120,
+    "max_segment_duration": 179,
     "min_pause_duration": 4.0,
     "zoom_factor": 1.15,
     "background_music": {
@@ -8,8 +8,10 @@
         "file": "nhacnen.mp3",
         "volume": 0.10
     },
-    "groq_ai": {
-        "enabled": false,
-        "api_key": ""
+    "openclaw_ai": {
+        "enabled": true,
+        "api_key": "sk-d8309ec1407d21545e540f555042bffa2680af8d34c0e086b1ad888007bd1155",
+        "model": "claude-haiku-4.5",
+        "min_viral_score": 7
     }
 }
