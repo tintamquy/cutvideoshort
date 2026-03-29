@@ -18,8 +18,8 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Kiểm tra ffmpeg
-if [ ! -f "./ffmpeg" ]; then
-    echo "⚠️  Không tìm thấy ffmpeg trong folder!"
+if ! command -v ffmpeg &> /dev/null; then
+    echo "⚠️  Không tìm thấy ffmpeg!"
     echo ""
     echo "Hướng dẫn cài đặt FFmpeg trên macOS:"
     echo "1. Cài Homebrew (nếu chưa có):"
@@ -36,7 +36,7 @@ fi
 echo "🚀 Đang khởi động..."
 echo ""
 
-python3 video_cutter.py
+python3 scripts/video_cutter.py
 
 echo ""
 read -p "Nhấn Enter để thoát..."
