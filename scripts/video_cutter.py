@@ -118,6 +118,7 @@ QUY TẮC BẮT BUỘC:
 1. TÌM CÀNG NHIỀU ĐOẠN VIRAL CÀNG TỐT. Với video dài (như 30 phút - 1 tiếng), BẮT BUỘC phải tìm TẤT CẢ các đoạn tiềm năng. Đừng ngại trả về 10, 20, hay 30 đoạn nếu nội dung thật sự hấp dẫn. Tuyệt đối KHÔNG LƯỜI BIẾNG bỏ sót nội dung ở phần giữa hay phần cuối video. Giữ mọi thứ trong 1 file JSON duy nhất.
 2. Độ dài mỗi đoạn BẮT BUỘC TỪ 50 GIÂY ĐẾN {max_duration} GIÂY (Dưới 3 phút). Tuyệt đối không quá {max_duration} giây. Tự cộng/trừ thời gian cho mạch truyện trọn vẹn.
 3. Tiêu đề (title): MỖI ĐOẠN CẦN CÓ Title tiếng Việt dạng Hook Title giật gân. RẤT QUAN TRỌNG: TIÊU ĐỀ PHẢI NGẮN GỌN (CHỈ TỪ 3 ĐẾN 6 TỪ).
+   - TUYỆT ĐỐI KHÔNG ĐƯỢC THÊM CÁC TIỀN TỐ/ĐÁNH SỐ NHƯ "short_1_", "Đoạn 1", "Clip 01" VÀO TIÊU ĐỀ.
 4. Độ viral (viral_score): Chấm điểm 1 đến 10.
 5. QUAN TRỌNG: Cột mốc thời gian trong ngoặc vuông [] được tính bằng TỔNG SỐ GIÂY (Ví dụ: [130.50s]). Khi trả JSON, BÊ NGUYÊN CON SỐ GIÂY NÀY VÀO `start_time` VÀ `end_time`. Tuyệt đối KHÔNG tự quy đổi lại thành phút, giây để tránh sai số hiển thị.
 6. CHỈ TRẢ VỀ MỘT MẢNG JSON, KHÔNG BÌNH LUẬN GÌ THÊM.
@@ -554,16 +555,19 @@ class MainController:
         output_folder = self.output_dir / video_file.stem
         output_folder.mkdir(exist_ok=True)
         
-        for idx, seg in enumerate(segments, 1):
+        for seg in segments:
             # Enforce strict 179s limit
             if seg.duration > 179:
                 seg.end_time = seg.start_time + 179
                 seg.duration = 179
             
-            output_name = f"{seg.title}.mp4".replace(" ", "_")
+            # Tên file sạch, không có idx, không có dấu cách (chuyển thành _)
+            # Xóa sạch các ký tự lạ và trimming
+            clean_title = re.sub(r'[\\/*?:"<>|]', "", seg.title).strip()
+            output_name = clean_title.replace(" ", "_") + ".mp4"
             output_path = output_folder / output_name
             
-            print(f"  🎬 Đoạn {idx}: {seg.title} ({seg.duration:.1f}s)")
+            print(f"  🎬 Đang cắt: {seg.title} ({seg.duration:.1f}s)")
             success = processor.process_video(
                 input_video=str(video_file),
                 output_video=str(output_path),
@@ -576,7 +580,7 @@ class MainController:
                 music_volume=self.music_volume,
                 zoom_factor=self.config.get('zoom_factor', 1.15)
             )
-            if success: print(f"     ✅ Lưu tại: {output_name}")
+            if success: print(f"     ✅ Hoàn thành: {output_name}")
 
 
 def main():
