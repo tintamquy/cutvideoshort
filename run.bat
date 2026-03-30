@@ -1,30 +1,26 @@
 @echo off
-chcp 65001 >nul
-title Phần Mềm Cắt Video Short - PhatDaPhoTe.com
-cls
+REM Phần Mềm Cắt Video Short - PhatDaPhoTe.com
+REM Script khởi động cho Windows
 
-echo ============================================================
+echo ======================================================================
 echo    PHẦN MỀM CẮT VIDEO SHORT - PhatDaPhoTe.com
-echo ============================================================
+echo ======================================================================
 echo.
 
-REM Kiểm tra Python có được cài đặt không
+REM Kiểm tra Python
 python --version >nul 2>&1
-if errorlevel 1 (
-    echo ❌ Python chưa được cài đặt!
-    echo 📥 Vui lòng cài đặt Python từ https://www.python.org/
-    echo.
+if %errorlevel% neq 0 (
+    echo [ERROR] Khong tim thay Python! Vui long cai dat Python 3.
     pause
     exit /b 1
 )
 
-REM Chạy script Python
-set PYTHONIOENCODING=utf-8
-python video_cutter.py
+echo [INFO] Dang khoi dong Video Cutter...
+echo.
 
-REM Giữ cửa sổ mở nếu có lỗi
-if errorlevel 1 (
-    echo.
-    echo ❌ Có lỗi xảy ra!
-    pause
-)
+python scripts\video_cutter.py
+
+echo.
+echo ======================================================================
+echo [FINISH] Hoan thanh tat ca.
+pause
