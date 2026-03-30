@@ -118,9 +118,14 @@ QUY TẮC BẮT BUỘC:
 1. TÌM CÀNG NHIỀU ĐOẠN VIRAL CÀNG TỐT. Với video dài (như 30 phút - 1 tiếng), BẮT BUỘC phải tìm TẤT CẢ các đoạn tiềm năng. Đừng ngại trả về 10, 20, hay 30 đoạn nếu nội dung thật sự hấp dẫn. Tuyệt đối KHÔNG LƯỜI BIẾNG bỏ sót nội dung ở phần giữa hay phần cuối video. Giữ mọi thứ trong 1 file JSON duy nhất.
 2. Độ dài mỗi đoạn BẮT BUỘC TỪ 50 GIÂY ĐẾN {max_duration} GIÂY (Dưới 3 phút). Tuyệt đối không quá {max_duration} giây. Tự cộng/trừ thời gian cho mạch truyện trọn vẹn.
 3. Tiêu đề (title): MỖI ĐOẠN CẦN CÓ Title tiếng Việt để làm tiêu đề video.
-   - YÊU CẦU PHONG CÁCH: Tiêu đề phải **Hấp dẫn và Gây tò mò** nhưng vẫn phải **Trực diện, Dễ hiểu và Tuyệt đối Trang nghiêm** (vì đây là nội dung Phật pháp).
-   - TRÁNH CÂU VIEW RẺ TIỀN: Không đặt tiêu đề quá giật gân theo kiểu câu view bất chấp, không dùng từ ngữ dung tục.
-   - ĐỘ DÀI: Ngắn gọn, súc tích (Khoảng 3 đến 7 từ). 
+   - YÊU CẦU PHONG CÁCH: Tiêu đề phải mang tính **HÀNH ĐỘNG hoặc KHƠI GỢI TÒ MÒ (HOOK)** cực mạnh. Người xem phải muốn bấm vào xem ngay lập tức để tìm câu trả lời.
+   - GIỮ SỰ TRANG NGHIÊM: Tuyệt đối dùng ngôn ngữ chuẩn mực, tôn trọng Phật pháp. Tránh các từ ngữ giật gân rẻ tiền của giới showbiz.
+   - VÍ DỤ TIÊU ĐỀ TỐT (TRANG NGHIÊM NHƯNG CUỐN HÚT): 
+     + "Bí mật đằng sau việc niệm Phật thành công" (Thay vì: Cách niệm Phật đúng)
+     + "Tại sao càng cầu nguyện thì phiền não càng tăng?" (Thay vì: Lỗi khi cầu nguyện)
+     + "Cảnh giới đáng sợ nếu không biết Buông bỏ" (Thay vì: Tác hại của sự cố chấp)
+     + "Sự thật về luật nhân quả ngay trong đời này" (Thay vì: Giải thích về nhân quả)
+   - ĐỘ DÀI: Ngắn gọn, súc tích (Khoảng 4 đến 8 từ).
    - TUYỆT ĐỐI KHÔNG ĐƯỢC THÊM CÁC TIỀN TỐ/ĐÁNH SỐ NHƯ "short_1_", "Đoạn 1", "Clip 01" VÀO TIÊU ĐỀ.
 4. Độ viral (viral_score): Chấm điểm 1 đến 10.
 5. QUAN TRỌNG: Cột mốc thời gian trong ngoặc vuông [] được tính bằng TỔNG SỐ GIÂY (Ví dụ: [130.50s]). Khi trả JSON, BÊ NGUYÊN CON SỐ GIÂY NÀY VÀO `start_time` VÀ `end_time`. Tuyệt đối KHÔNG tự quy đổi lại thành phút, giây để tránh sai số hiển thị.
