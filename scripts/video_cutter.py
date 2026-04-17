@@ -362,10 +362,10 @@ class SegmentDetector:
                 corrected_segments.append(segment)
                 continue
             
-            # Kiểm tra câu cuối
+            # Kiểm tra câu cuối và đảm bảo đủ độ dài tối thiểu
             last_text = seg_subs[-1].text.strip()
             idx = subtitle_segments.index(seg_subs[-1])
-            while not self._is_sentence_end(last_text) and idx < len(subtitle_segments) - 1:
+            while (segment.end_time - segment.start_time < self.min_duration or not self._is_sentence_end(last_text)) and idx < len(subtitle_segments) - 1:
                 next_sub = subtitle_segments[idx + 1]
                 if next_sub.end_time - segment.start_time > self.max_duration:
                     break
