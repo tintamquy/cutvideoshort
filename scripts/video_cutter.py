@@ -16,6 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Ép hệ thống dùng UTF-8 trên Windows để in được emoji (Ngăn lỗi UnicodeEncodeError khi print)
 if sys.stdout.encoding.lower() != 'utf-8':
@@ -93,7 +94,7 @@ class SubtitleParser:
 class OpenClawAI:
     """Tích hợp OpenClaw API để phân tích semantic và độ viral"""
     
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4.6", enabled: bool = True):
+    def __init__(self, api_key: str, model: str = "claude-haiku-4.5", enabled: bool = True):
         self.api_key = api_key
         self.model = model
         self.enabled = enabled and bool(api_key)
@@ -111,25 +112,40 @@ class OpenClawAI:
         try:
             import requests
             
-            prompt = f"""Bạn là một chuyên gia sáng tạo nội dung viral, giống như Vizard.ai. 
+            prompt = f"""Bạn là một chuyên gia sáng tạo nội dung viral về Phật pháp, am hiểu cách thu hút người xem một cách trang nghiêm, tinh tế.
 Hãy phân tích file phụ đề (subtitle) sau đây và chọn ra những phân đoạn có nội dung hấp dẫn, trọn vẹn ý nghĩa, có khả năng viral cao.
 
-QUY TẮC BẮT BUỘC:
-1. TÌM CÀNG NHIỀU ĐOẠN VIRAL CÀNG TỐT. Với video dài (như 30 phút - 1 tiếng), BẮT BUỘC phải tìm TẤT CẢ các đoạn tiềm năng. Đừng ngại trả về 10, 20, hay 30 đoạn nếu nội dung thật sự hấp dẫn. Tuyệt đối KHÔNG LƯỜI BIẾNG bỏ sót nội dung ở phần giữa hay phần cuối video. Giữ mọi thứ trong 1 file JSON duy nhất.
-2. Độ dài mỗi đoạn BẮT BUỘC TỪ 50 GIÂY ĐẾN {max_duration} GIÂY (Dưới 3 phút). Tuyệt đối không quá {max_duration} giây. Tự cộng/trừ thời gian cho mạch truyện trọn vẹn.
-3. Tiêu đề (title): MỖI ĐOẠN CẦN CÓ Title tiếng Việt để làm tiêu đề video.
-   - YÊU CẦU PHONG CÁCH: Tiêu đề phải mang tính **HÀNH ĐỘNG hoặc KHƠI GỢI TÒ MÒ (HOOK)** cực mạnh. Người xem phải muốn bấm vào xem ngay lập tức để tìm câu trả lời.
-   - GIỮ SỰ TRANG NGHIÊM: Tuyệt đối dùng ngôn ngữ chuẩn mực, tôn trọng Phật pháp. Tránh các từ ngữ giật gân rẻ tiền của giới showbiz.
-   - VÍ DỤ TIÊU ĐỀ TỐT (TRANG NGHIÊM NHƯNG CUỐN HÚT): 
-     + "Bí mật đằng sau việc niệm Phật thành công" (Thay vì: Cách niệm Phật đúng)
-     + "Tại sao càng cầu nguyện thì phiền não càng tăng?" (Thay vì: Lỗi khi cầu nguyện)
-     + "Cảnh giới đáng sợ nếu không biết Buông bỏ" (Thay vì: Tác hại của sự cố chấp)
-     + "Sự thật về luật nhân quả ngay trong đời này" (Thay vì: Giải thích về nhân quả)
-   - ĐỘ DÀI: Ngắn gọn, súc tích (Khoảng 4 đến 8 từ).
-   - TUYỆT ĐỐI KHÔNG ĐƯỢC THÊM CÁC TIỀN TỐ/ĐÁNH SỐ NHƯ "short_1_", "Đoạn 1", "Clip 01" VÀO TIÊU ĐỀ.
-4. Độ viral (viral_score): Chấm điểm 1 đến 10.
-5. QUAN TRỌNG: Cột mốc thời gian trong ngoặc vuông [] được tính bằng TỔNG SỐ GIÂY (Ví dụ: [130.50s]). Khi trả JSON, BÊ NGUYÊN CON SỐ GIÂY NÀY VÀO `start_time` VÀ `end_time`. Tuyệt đối KHÔNG tự quy đổi lại thành phút, giây để tránh sai số hiển thị.
-6. CHỈ TRẢ VỀ MỘT MẢNG JSON, KHÔNG BÌNH LUẬN GÌ THÊM.
+========== QUY TRÌNH BẮT BUỘC CHO MỖI ĐOẠN (PHẢI THEO ĐỦ 4 BƯỚC) ==========
+
+BƯỚC 1 — CHỌN ĐOẠN NỘI DUNG TRỌN VẸN VÀ TÌM CÂU MỞ ĐẦU HAY:
+   - Dựa trên phụ đề, hãy xác định các phần có nội dung mang ý nghĩa trọn vẹn, truyền tải một bài học sâu sắc hoặc câu chuyện giá trị.
+   - Trong phần nội dung đó, hãy CHỌN LỌC KỸ CÀNG một câu mở đầu thật sự hay, có ý nghĩa, và chạm đến người nghe. Không cần phải là câu "gây sốc", nhưng phải là câu dẫn dắt mượt mà, sâu sắc và liên quan trực tiếp đến thông điệp cốt lõi.
+   - Câu mở đầu đón phải đứng vững được khi là câu đầu tiên của một video. TUYỆT ĐỐI CẤM các câu mào đầu như: "Hôm nay thầy... ", "Như các bạn đã biết...", "Bạch thầy...", "Thưa quý vị...".
+   → `start_time` PHẢI trỏ ngay vào chính câu mở đầu tinh túy đó.
+
+BƯỚC 2 — ĐẶT TIÊU ĐỀ DỰA TRÊN CÂU MỞ ĐẦU:
+   - Tiêu đề PHẢI được đúc kết từ chính câu mở đầu ở Bước 1. Điều này đảm bảo khi người xem đọc tiêu đề xong, câu đầu tiên họ nghe thấy sẽ là câu trả lời/giải thích liên quan trực tiếp đến tiêu đề đó.
+   - Ví dụ câu mở đầu là: "Chúng ta cứ mải mê chạy theo hạnh phúc bên ngoài, mà quên mất sự tĩnh lặng ở bên trong..."
+     → Tiêu đề: "Bạn đang tìm hạnh phúc ở đâu?" ✅
+   - Ví dụ câu mở đầu: "Tại sao ta tu tập rất lâu mà tâm vẫn không an? Bởi vì ta chưa buông được..."
+     → Tiêu đề: "Tu tập lâu mà tâm vẫn không an?" ✅
+   - TUYỆT ĐỐI KHÔNG đặt tiêu đề chung chung không liên quan đến câu đầu tiên.
+   - ĐỘ DÀI tiêu đề: 4 đến 8 từ, trang nghiêm, không giật tít, không thêm "Clip 1", "Đoạn 2"...
+
+BƯỚC 3 — MỞ RỘNG ĐỦ ĐỘ DÀI:
+   Từ câu mở đầu đó, hãy lấy tiếp các câu phía sau để tạo thành một đoạn video đủ thời lượng (50–{max_duration} giây), có nội dung trọn vẹn, và kết thúc ở một câu hoàn chỉnh. Đừng cắt cụt lủn ở cuối.
+
+BƯỚC 4 — CHẤM ĐIỂM ĐÁNH GIÁ (VIRAL SCORE):
+   Chấm viral_score từ 1–10. Ưu tiên những đoạn nội dung thật sự giá trị và ý nghĩa, câu đầu tiên đủ độ "chạm". Chỉ giữ những đoạn được 7/10 trở lên.
+
+==========================================================================
+
+QUY TẮC THỜI GIAN:
+- Cột mốc trong ngoặc vuông [] tính bằng TỔNG SỐ GIÂY (Ví dụ: [130.50s]).
+- Khi trả JSON, BÊ NGUYÊN CON SỐ ĐÓ vào `start_time` và `end_time`. KHÔNG tự quy đổi.
+
+TÌM CÀNG NHIỀU ĐOẠN VIRAL CÀNG TỐT. Với video dài (30 phút - 1 tiếng), BẮT BUỘC phải quét toàn bộ, không bỏ sót phần giữa hay cuối.
+CHỈ TRẢ VỀ MỘT MẢNG JSON THUẦN TÚY, KHÔNG BÌNH LUẬN GÌ THÊM.
 
 Subtitles:
 {subtitle_text}
@@ -139,9 +155,10 @@ Mẫu JSON TRẢ VỀ:
   {{
     "start_time": 120.50,
     "end_time": 215.00,
-    "title": "Bí mật kiếm tiền triệu mỗi ngày",
+    "hook_sentence": "Câu hook chính xác bạn đã chọn ở Bước 1 (trích nguyên văn từ phụ đề)",
+    "title": "Tiêu đề rút ra từ câu hook đó (4-8 từ)",
     "viral_score": 9,
-    "reason": "Giải thích ngắn gọn 1 câu tiếng việt"
+    "reason": "Lý do ngắn gọn: tại sao câu hook này đủ mạnh để mở đầu clip"
   }}
 ]"""
             
@@ -229,11 +246,31 @@ class SegmentDetector:
                     safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
                     safe_title = safe_title.strip()
                     
+                    hook_sentence = item.get('hook_sentence', '').strip()
                     print(f"     🔥 SIÊU PHẨM (Điểm: {score}/10): {title}")
+                    if hook_sentence:
+                        print(f"        🎣 Hook: {hook_sentence[:80]}...")
                     print(f"        ✏️ Lý do: {item.get('reason', '')}")
                     
                     start = float(item.get('start_time', 0))
                     end = float(item.get('end_time', 0))
+                    
+                    if hook_sentence:
+                        hook_words = set(hook_sentence.lower().split())
+                        best_match_score = 0
+                        best_match_sub = None
+                        search_window = [s for s in subtitle_segments if abs(s.start_time - start) <= 60]
+                        for sub in search_window:
+                            sub_words = set(sub.text.lower().split())
+                            if not sub_words:
+                                continue
+                            overlap = len(hook_words & sub_words) / max(len(hook_words), 1)
+                            if overlap > best_match_score:
+                                best_match_score = overlap
+                                best_match_sub = sub
+                        if best_match_sub and best_match_score >= 0.3:
+                            print(f"        📌 Đã căn chỉnh câu mở đầu: '{best_match_sub.text[:60]}...' (khớp {best_match_score:.0%})")
+                            start = best_match_sub.start_time
                     
                     actual_text = [s.text for s in subtitle_segments if s.start_time >= start and s.end_time <= end]
                     
@@ -308,7 +345,7 @@ class SegmentDetector:
     
     def _ensure_complete_sentences(self, video_segments: List[VideoSegment], 
                                    subtitle_segments: List[SubtitleSegment]) -> List[VideoSegment]:
-        """Đảm bảo mỗi đoạn BẮT ĐẦU và KẾT THÚC ở câu hoàn chỉnh"""
+        """Đảm bảo mỗi đoạn KẾT THÚC ở câu hoàn chỉnh (không can thiệp đầu đoạn)"""
         corrected_segments = []
         
         for segment in video_segments:
@@ -318,18 +355,6 @@ class SegmentDetector:
             if not seg_subs:
                 corrected_segments.append(segment)
                 continue
-            
-            # Kiểm tra câu đầu tiên
-            first_text = seg_subs[0].text.strip()
-            idx = subtitle_segments.index(seg_subs[0])
-            while first_text and not first_text[0].isupper() and not first_text[0].isdigit() and idx > 0:
-                prev_sub = subtitle_segments[idx - 1]
-                if segment.end_time - prev_sub.start_time > self.max_duration:
-                    break
-                segment.start_time = prev_sub.start_time
-                seg_subs.insert(0, prev_sub)
-                idx -= 1
-                first_text = seg_subs[0].text.strip()
             
             # Kiểm tra câu cuối
             last_text = seg_subs[-1].text.strip()
@@ -405,9 +430,9 @@ class VideoProcessor:
         has_watermark_img = watermark_path and os.path.exists(watermark_path)
 
         filter_complex = (
-            f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=30[bg];"
-            f"[0:v]scale=iw*{zoom_factor}:ih*{zoom_factor},crop=ih*9/16:ih,scale=1080:1920:force_original_aspect_ratio=decrease[fg];"
-            f"[bg][fg]overlay=(W-w)/2:(H-h)/2"
+            f"[0:v]format=yuv420p,scale=270:480:force_original_aspect_ratio=increase,crop=270:480,boxblur=luma_radius=20:luma_power=3:chroma_radius=20:chroma_power=3,scale=1080:1920[bg];"
+            f"[0:v]format=yuv420p,scale=1080*{zoom_factor}:-2[fg];"
+            f"[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p"
         )
 
         if has_drawtext:
@@ -418,7 +443,7 @@ class VideoProcessor:
             filter_complex += f"[v1];[v1][1:v]overlay=0:0[vout]"
         
         cmd = [
-            self.ffmpeg_path, '-ss', start_ts, '-t', str(duration),
+            self.ffmpeg_path, '-hwaccel', 'auto', '-ss', start_ts, '-t', str(duration),
             '-i', input_video, '-i', logo_path
         ]
         
@@ -437,7 +462,7 @@ class VideoProcessor:
         cmd.extend([
             '-filter_complex', filter_complex,
             '-map', '[vout]', '-map', audio_map,
-            '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
+            '-c:v', 'h264_nvenc', '-preset', 'p6', '-crf', '23',
             '-c:a', 'aac', '-b:a', '128k', '-shortest', '-y', output_video
         ])
         
@@ -473,7 +498,8 @@ class MainController:
         
         # FFmpeg path
         if sys.platform == 'win32':
-            ffmpeg_exe = self.base_dir / 'ffmpeg.exe'
+            # Tìm ở root_dir trước (nơi để ffmpeg.exe)
+            ffmpeg_exe = self.root_dir / 'ffmpeg.exe'
             self.ffmpeg_path = str(ffmpeg_exe) if ffmpeg_exe.exists() else 'ffmpeg'
         else:
             hb_ffmpeg = Path('/opt/homebrew/bin/ffmpeg')
@@ -519,13 +545,24 @@ class MainController:
     def find_video_subtitle_pairs(self) -> List[Tuple[Path, Path]]:
         pairs = []
         video_exts = ['.mp4', '.avi', '.mov', '.mkv', '.webm']
+        
+        # 1. Tìm trong các root folder input (file lẻ cùng tên)
+        for f in self.input_dir.iterdir():
+            if f.is_file() and f.suffix.lower() in video_exts:
+                srt_file = f.with_suffix('.srt')
+                if srt_file.exists():
+                    pairs.append((f, srt_file))
+        
+        # 2. Tìm trong các subfolders (1 video + 1 srt dù tên gì)
         for subfolder in self.input_dir.iterdir():
             if subfolder.is_dir():
                 video, srt = None, None
                 for f in subfolder.iterdir():
                     if not video and f.suffix.lower() in video_exts: video = f
                     elif not srt and f.suffix.lower() == '.srt': srt = f
-                if video and srt: pairs.append((video, srt))
+                
+                if video and srt and (video, srt) not in pairs:
+                    pairs.append((video, srt))
         return pairs
     
     def process_all(self):
@@ -563,32 +600,48 @@ class MainController:
         output_folder = self.output_dir / video_file.stem
         output_folder.mkdir(exist_ok=True)
         
-        for seg in segments:
-            # Enforce strict 179s limit
-            if seg.duration > 179:
-                seg.end_time = seg.start_time + 179
-                seg.duration = 179
+        max_threads = self.config.get('max_threads', 3)
+        print(f"  ⚡ Bắt đầu cắt {len(segments)} đoạn video (chạy {max_threads} luồng song song)...")
+        
+        with ThreadPoolExecutor(max_workers=max_threads) as executor:
+            future_to_seg = {}
+            for seg in segments:
+                # Enforce strict 179s limit
+                if seg.duration > 179:
+                    seg.end_time = seg.start_time + 179
+                    seg.duration = 179
+                
+                # Tên file sạch, giữ dấu cách để YouTube tự bắt tiêu đề đẹp
+                clean_title = re.sub(r'[\\/*?:"<>|]', "", seg.title).strip()
+                output_name = f"{clean_title}.mp4"
+                output_path = output_folder / output_name
+                
+                future = executor.submit(
+                    processor.process_video,
+                    input_video=str(video_file),
+                    output_video=str(output_path),
+                    start_time=seg.start_time,
+                    end_time=seg.end_time,
+                    title_text=seg.title,
+                    logo_path=str(self.logo_path),
+                    watermark_path=str(self.root_dir / 'assets' / 'watermark.png'),
+                    background_music=self.background_music,
+                    music_volume=self.music_volume,
+                    zoom_factor=self.config.get('zoom_factor', 1.5)
+                )
+                future_to_seg[future] = (seg, output_name)
+                print(f"  🎬 Đã đưa vào tiến trình cắt: {seg.title} ({seg.duration:.1f}s)")
             
-            # Tên file sạch, không có idx, không có dấu cách (chuyển thành _)
-            # Xóa sạch các ký tự lạ và trimming
-            clean_title = re.sub(r'[\\/*?:"<>|]', "", seg.title).strip()
-            output_name = clean_title.replace(" ", "_") + ".mp4"
-            output_path = output_folder / output_name
-            
-            print(f"  🎬 Đang cắt: {seg.title} ({seg.duration:.1f}s)")
-            success = processor.process_video(
-                input_video=str(video_file),
-                output_video=str(output_path),
-                start_time=seg.start_time,
-                end_time=seg.end_time,
-                title_text=seg.title,
-                logo_path=str(self.logo_path),
-                watermark_path=str(self.root_dir / 'assets' / 'watermark.png'),
-                background_music=self.background_music,
-                music_volume=self.music_volume,
-                zoom_factor=self.config.get('zoom_factor', 1.15)
-            )
-            if success: print(f"     ✅ Hoàn thành: {output_name}")
+            for future in as_completed(future_to_seg):
+                seg, output_name = future_to_seg[future]
+                try:
+                    success = future.result()
+                    if success:
+                        print(f"     ✅ Hoàn thành: {output_name}")
+                    else:
+                        print(f"     ❌ Lỗi khi cắt (FFMPEG error): {output_name}")
+                except Exception as exc:
+                    print(f"     ❌ Lỗi khi chạy luồng cho: {output_name} - {exc}")
 
 
 def main():
