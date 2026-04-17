@@ -115,7 +115,13 @@ class OpenClawAI:
             prompt = f"""Bạn là một chuyên gia sáng tạo nội dung viral về Phật pháp, am hiểu cách thu hút người xem một cách trang nghiêm, tinh tế.
 Hãy phân tích file phụ đề (subtitle) sau đây và chọn ra những phân đoạn có nội dung hấp dẫn, trọn vẹn ý nghĩa, có khả năng viral cao.
 
-========== QUY TRÌNH BẮT BUỘC CHO MỖI ĐOẠN (PHẢI THEO ĐỦ 4 BƯỚC) ==========
+========== QUY TRÌNH BẮT BUỘC CHO MỖI ĐOẠN ==========
+
+BƯỚC 0 — SỬA LỖI CHÍNH TẢ VÀ HIỂU ĐÚNG NGHĨA (QUAN TRỌNG):
+   - Phụ đề do máy tạo tự động nên chắc chắn chứa nhiều lỗi chính tả, sai dấu, nhận diện sai thuật ngữ Phật giáo hoặc tên người.
+   - BẮT BUỘC bạn phải tự "sửa lỗi" trong đầu để hiểu đúng ngữ nghĩa gốc của câu chuyện TRƯỚC KHI làm các bước tiếp theo.
+   - Tiêu đề bạn tạo ra ở Bước 2 TUYỆT ĐỐI KHÔNG ĐƯỢC lặp lại các chữ sai chính tả có trong phụ đề. Phải dùng từ ngữ chuẩn xác, đúng ngữ pháp.
+   (Lưu ý: riêng trường `hook_sentence` giữ nguyên văn chữ của phụ đề để tool có thể dò tìm, nhưng `title` phải đúng chính tả 100%).
 
 BƯỚC 1 — CHỌN ĐOẠN NỘI DUNG TRỌN VẸN VÀ TÌM CÂU MỞ ĐẦU HAY:
    - Dựa trên phụ đề, hãy xác định các phần có nội dung mang ý nghĩa trọn vẹn, truyền tải một bài học sâu sắc hoặc câu chuyện giá trị.
