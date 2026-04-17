@@ -138,8 +138,11 @@ BƯỚC 2 — ĐẶT TIÊU ĐỀ DỰA TRÊN CÂU MỞ ĐẦU:
    - TUYỆT ĐỐI KHÔNG đặt tiêu đề chung chung không liên quan đến câu đầu tiên.
    - ĐỘ DÀI tiêu đề: 4 đến 8 từ, trang nghiêm, không giật tít, không thêm "Clip 1", "Đoạn 2"...
 
-BƯỚC 3 — MỞ RỘNG ĐỦ ĐỘ DÀI:
-   Từ câu mở đầu đó, hãy lấy tiếp các câu phía sau để tạo thành một đoạn video đủ thời lượng (50–{max_duration} giây), có nội dung trọn vẹn, và kết thúc ở một câu hoàn chỉnh. Đừng cắt cụt lủn ở cuối.
+BƯỚC 3 — MỞ RỘNG ĐỦ ĐỘ DÀI (CỰC KỲ QUAN TRỌNG):
+   - Tuyệt đối CẤM việc chỉ lấy đúng câu mở đầu rồi kết thúc luôn (tạo ra các đoạn siêu ngắn 3s - 5s). ĐÂY LÀ LỖI RẤT NẶNG.
+   - Từ câu mở đầu đó, bạn PHẢI tiếp tục lấy thêm các câu phía sau để tạo thành một đoạn video CÓ TỔNG THỜI LƯỢNG TỐI THIỂU là 50 GIÂY và TỐI ĐA là {max_duration} giây.
+   - Luôn nhớ: `end_time` trừ đi `start_time` PHẢI LỚN HƠN HOẶC BẰNG 50. Hãy kiểm tra lại phép toán này trước khi xuất kết quả!
+   - Đảm bảo đoạn văn kết thúc ở một câu hoàn chỉnh, tránh cắt cụt.
 
 BƯỚC 4 — CHẤM ĐIỂM ĐÁNH GIÁ (VIRAL SCORE):
    Chấm viral_score từ 1–10. Ưu tiên những đoạn nội dung thật sự giá trị và ý nghĩa, câu đầu tiên đủ độ "chạm". Chỉ giữ những đoạn được 7/10 trở lên.
